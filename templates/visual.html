@@ -1,0 +1,198 @@
+<head>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        #company_name, #site_address {
+            font-size: 1.25em;
+            padding: 10px;
+        }
+        label {
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Visual Inspection Report Generator</h2>
+	<div class="container">
+        <form method="POST" enctype="multipart/form-data">
+            <label for="company_name">Customer Name:</label>
+            <input list="company_names" name="company_name" id="company_name" class="form-control form-control-lg" required>
+            <datalist id="company_names">
+                {% for name in company_names %}
+                    <option value="{{ name }}">
+                {% endfor %}
+            </datalist>
+
+            <label for="site_address">Site Address:</label>
+			<input list="site_addresses" name="site_address" id="site_address" class="form-control form-control-lg" placeholder="Select a customer first" disabled required>
+            <datalist id="site_addresses"></datalist>
+
+            <br><br>
+
+            <label for="service_date">Inspection Date:</label>
+            <input type="date" name="service_date" required><br><br>
+
+			<label>Visual Inspection:</label><br>
+			<input type="radio" name="visual_inspection" value="Yes" checked> Yes
+			<input type="radio" name="visual_inspection" value="No"> No
+			<br><br>
+
+			<label>Faults Reported:</label><br>
+			<input type="radio" name="faults_reported" value="Yes" onclick="toggleAfterPhotos(true)"> Yes
+			<input type="radio" name="faults_reported" value="No" checked onclick="toggleAfterPhotos(false)"> No
+			<br><br>
+			
+			
+			<div class="form-group">
+				<label>Work Description</label>
+				<textarea class="form-control" name="work_description" id="work_description"></textarea>
+			</div>
+						
+
+			<label for="photo_before">Upload Before Photo(s):</label>
+			<input type="file" name="photo_before" id="photo_before" accept="image/*" multiple><br><br>
+
+			
+			
+			<div id="after_photos_section" style="display: none;">
+			  <label>Upload After Photo(s):</label><br>
+			  <input type="file" name="photo_after" multiple accept="image/*">
+			  <br><br>
+			</div>
+
+			<script>
+			  function toggleAfterPhotos(show) {
+				const section = document.getElementById('after_photos_section');
+				section.style.display = show ? 'block' : 'none';
+			  }
+			</script>			
+			
+
+			<div class="form-group">
+				<label for="technician_name">Technician Name:</label>
+				<input type="text" id="technician_name" name="technician_name" class="form-control form-control-lg" required>
+			</div>
+
+            <input type="submit" value="Generate Report">
+        </form>
+    </div>
+
+    {% if filename %}
+        <p>Report generated: <a href="{{ url_for('download_file', filename=filename) }}" target="_blank">Download</a></p>
+    {% endif %}
+
+    <script>
+        const siteAddressesByCompany = {{ site_addresses_by_company | tojson }};
+        
+        document.getElementById('company_name').addEventListener('change', function () {
+            const company = this.value;
+            updateSiteAddresses(company);
+        });
+
+        function updateSiteAddresses(company) {
+            const siteAddressInput = document.getElementById('site_address');
+            const datalist = document.getElementById('site_addresses');
+            datalist.innerHTML = '';
+            siteAddressInput.value = '';
+            siteAddressInput.disabled = !company;
+            if (company && siteAddressesByCompany[company]) {
+                siteAddressesByCompany[company].forEach(address => {
+                    const option = document.createElement('option');
+                    option.value = address;
+                    datalist.appendChild(option);
+                });
+                siteAddressInput.disabled = false;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const initialCompany = document.getElementById('company_name').value;
+            if (initialCompany) {
+                updateSiteAddresses(initialCompany);
+            }
+        });
+    </script>
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            width: 100%;
+            height: 100%;
+        }
+
+        h2 {
+            text-align: center;
+            font-size: 28px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f7f7f7;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        label {
+            font-weight: bold;
+            font-size: 20px;
+        }
+
+        input[type="date"], select, textarea, input[type="file"], input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+        }
+
+        input[type="submit"] {
+            width: 100%;
+            padding: 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+    </style>
+	
+	
+	<script>
+	document.addEventListener('DOMContentLoaded', function () {
+		const faultsRadios = document.querySelectorAll('input[name="faults_reported"]');
+		const workDescription = document.getElementById('work_description');
+
+		function toggleWorkDescription() {
+			const selected = document.querySelector('input[name="faults_reported"]:checked').value;
+			if (selected === 'Yes') {
+				workDescription.value = '';
+				workDescription.parentElement.style.display = 'block';
+			} else {
+				workDescription.value = 'No faults had been identified.';
+				workDescription.parentElement.style.display = 'none';
+			}
+		}
+
+		// Run once on load
+		toggleWorkDescription();
+
+		// Add event listeners
+		faultsRadios.forEach(radio => {
+			radio.addEventListener('change', toggleWorkDescription);
+		});
+	});
+	</script>
+
+	
+	
+	
+</body>

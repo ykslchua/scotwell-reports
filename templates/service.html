@@ -1,0 +1,404 @@
+<head>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        /* Custom styles to increase font size */
+        #company_name, #site_address {
+            font-size: 1.25em; /* Increase font size */
+            padding: 10px;    /* Add padding for better readability */
+        }
+
+        label {
+            font-size: 1.2em; /* Larger font size for labels */
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Service Report Generator</h2>
+
+	<div class="container">
+        <form method="POST" enctype="multipart/form-data">
+            
+            <label for="company_name">Customer Name:</label>
+            <input list="company_names" name="company_name" id="company_name" class="form-control form-control-lg" required>
+            <datalist id="company_names">
+                {% for name in company_names %}
+                    <option value="{{ name }}">
+                {% endfor %}
+            </datalist>
+
+            <label for="site_address">Site Address:</label>
+			<input list="site_addresses" name="site_address" id="site_address" class="form-control form-control-lg" placeholder="Select a customer first" disabled required>
+            <datalist id="site_addresses"></datalist>
+
+            <br><br>
+
+            <label for="service_date">Service Date:</label>
+            <input type="date" name="service_date" required><br><br>
+
+            <label for="screen_condition">Screen Condition:</label><br>
+            <textarea name="screen_condition" rows="3" cols="50" required></textarea><br><br>
+
+            <label for="action_taken">Action Taken:</label><br>
+            <textarea name="action_taken" rows="3" cols="50" required></textarea><br><br>
+
+            <label for="follow_up">Follow Up:</label><br>
+            <textarea name="follow_up" rows="3" cols="50"></textarea><br><br>
+
+            <h3 style="margin-top: 30px; font-size: 24px;">Spare Parts Used</h3>
+			<!-- Table-style headers -->
+			<div style="display: flex; font-weight: bold; gap: 10px; margin-bottom: 5px;">
+				<div style="flex: 2;">Spare Part</div>
+				<div style="flex: 2;">Model</div>
+				<div style="width: 80px;">Qty</div>
+				<div style="width: 100px;">Replaced</div>
+				<div style="width: 110px;">Repaired</div>
+				<div style="width: 100px;"></div>
+			</div>			
+			
+            <div id="spare-parts-container"></div>
+			
+            <button type="button" onclick="addSparePartRow()">Add Spare Part</button><br><br>
+
+			<label for="photo_before">Upload Before Photo(s):</label>
+			<input type="file" name="photo_before" id="photo_before" accept="image/*" multiple><br><br>
+
+			<label for="photo_after">Upload After Photo(s):</label>
+			<input type="file" name="photo_after" id="photo_after" accept="image/*" multiple><br><br>
+
+
+			<div class="form-group">
+				<label for="technician_name">Technicians Name:</label>
+				<input type="text" id="technician_name" name="technician_name" class="form-control form-control-lg" required>
+			</div>
+
+            <input type="submit" value="Generate Report">
+        </form>
+    </div>
+
+    {% if filename %}
+        <p>Report generated: <a href="{{ url_for('download_file', filename=filename) }}" target="_blank">Download</a></p>
+    {% endif %}
+
+
+    <script>
+        const siteAddressesByCompany = {{ site_addresses_by_company | tojson }};
+        
+        document.getElementById('company_name').addEventListener('change', function () {
+            const company = this.value;
+            updateSiteAddresses(company);
+        });
+
+        function updateSiteAddresses(company) {
+            const siteAddressInput = document.getElementById('site_address');
+            const datalist = document.getElementById('site_addresses');
+            
+			datalist.innerHTML = ''; // Clear existing options
+			siteAddressInput.value = ''; // Clear the site address input field
+            siteAddressInput.disabled = !company; // Disable the input until a customer is selected
+			
+            if (company && siteAddressesByCompany[company]) {
+				// Populate the datalist with addresses for the selected company
+				siteAddressesByCompany[company].forEach(address => {
+					const option = document.createElement('option');
+					option.value = address;
+					datalist.appendChild(option);
+				});			
+				siteAddressInput.disabled = false; // Enable input after populating
+			}
+        }
+		
+		// Ensure the site addresses are updated immediately if a customer is pre-selected
+		document.addEventListener('DOMContentLoaded', function() {
+			const initialCompany = document.getElementById('company_name').value;
+			if (initialCompany) {
+				updateSiteAddresses(initialCompany);  // Repopulate addresses if a default is set
+			}
+		});
+    </script>
+
+	<script>
+		const spareParts = {{ spare_parts | tojson }};
+		const sparePartsModels = {{ spare_parts_models_json | safe }};
+
+		function addSparePartRow() {
+			const container = document.getElementById('spare-parts-container');
+			const row = document.createElement('div');
+			const rows = document.querySelectorAll('.spare-part-row');
+			const index = rows.length;
+			row.classList.add('spare-part-row');
+			row.style.display = 'flex';
+			row.style.gap = '10px';
+			row.style.marginBottom = '5px';
+
+			// Spare Part select
+			const partSelect = document.createElement('select');
+			partSelect.innerHTML = `<option value="">-- Select Spare Part --</option>`;
+			partSelect.name = 'spare_part_name[]';
+			partSelect.style.flex = '2';
+
+			// Model input with datalist
+			const modelInput = document.createElement('input');
+			const datalistId = 'model-options-' + Date.now(); // unique id
+			modelInput.setAttribute('list', datalistId);
+			modelInput.name = 'spare_part_model[]';
+			modelInput.placeholder = 'Select or type model';
+			modelInput.className = 'model-select';
+			modelInput.style.flex = '2';
+			
+			const modelDataList = document.createElement('datalist');
+			modelDataList.id = datalistId;
+
+			partSelect.onchange = function () {
+				updateModelDatalist(modelDataList, partSelect.value);
+			};
+
+			spareParts.forEach(part => {
+				const option = document.createElement('option');
+				option.value = part;
+				option.textContent = part;
+				partSelect.appendChild(option);
+			});
+
+			// Quantity input
+			const quantity = document.createElement('input');
+			quantity.type = 'number';
+			quantity.name = 'spare_part_qty[]';
+			quantity.min = 1;
+			quantity.required = true;
+			quantity.style.width = '45px';
+			quantity.style.height = '50px';
+			quantity.style.flex = 'none';
+
+			// Replaced checkbox
+			const replaced = document.createElement('input');
+			replaced.type = 'checkbox';
+			replaced.name = 'spare_part_replaced[]';
+			replaced.value = index;
+			replaced.style.flex = '1';
+			replaced.style.marginTop = '10px';
+
+			// Repaired checkbox
+			const repaired = document.createElement('input');
+			repaired.type = 'checkbox';
+			repaired.name = 'spare_part_repaired[]';
+			repaired.value = index;
+			repaired.style.flex = '1';
+			repaired.style.marginTop = '10px';
+
+			// Remove button
+			const removeButton = document.createElement('button');
+			removeButton.type = 'button';
+			removeButton.textContent = 'Remove';
+			removeButton.style.flex = '1';
+			removeButton.onclick = function () {
+				row.remove();
+			};
+
+			row.appendChild(partSelect);
+			row.appendChild(modelInput);
+			row.appendChild(modelDataList);
+			row.appendChild(quantity);
+			row.appendChild(replaced);
+			row.appendChild(repaired);
+			row.appendChild(removeButton);
+			container.appendChild(row);
+		}
+
+		function updateModelDatalist(datalist, selectedPart) {
+			const company = document.getElementById('company_name').value;
+			const site = document.getElementById('site_address').value;
+			const models = sparePartsModels?.[company]?.[site]?.[selectedPart] || [];
+			datalist.innerHTML = "";
+			models.forEach(model => {
+				const option = document.createElement('option');
+				option.value = model;
+				datalist.appendChild(option);
+			});
+		}
+
+		function updateAllModels() {
+			document.querySelectorAll('select[name="spare_part_name[]"]').forEach(partSelect => {
+				const modelInput = partSelect.closest('div').querySelector('input[name="spare_part_model[]"]');
+				const modelDatalist = partSelect.closest('div').querySelector('datalist');
+				if (partSelect && modelInput && modelDatalist) {
+					updateModelDatalist(modelDatalist, partSelect.value);
+				}
+			});
+		}
+
+		document.getElementById('company_name').addEventListener('change', updateAllModels);
+		document.getElementById('site_address').addEventListener('change', updateAllModels);
+	</script>
+
+    
+    <style>
+        /* Style the page to make it mobile-responsive */
+		
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            width: 100%;
+            height: 100%;
+        }
+
+        h2 {
+            text-align: center;
+            font-size: 28px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f7f7f7;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        label {
+            font-weight: bold;
+            font-size: 20px;
+        }
+
+        input[type="date"], select, textarea, input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+        }
+
+		input[type="text"] {
+			width: 100%;
+			padding: 10px;
+			margin: 5px 0;
+			border-radius: 4px;
+			border: 1px solid #ccc;
+			font-size: 16px;
+		}
+
+        input[type="submit"] {
+            width: 100%;
+            padding: 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+				flex-direction: column;
+				align-items: flex-start;
+                padding: 10px;
+            }
+
+            input[type="submit"] {
+                font-size: 20px;
+            }
+
+            textarea {
+                width: 100%;
+                box-sizing: border-box;
+                font-size: 18px;
+            }
+
+            label {
+                font-size: 18px;
+            }
+
+            input[type="date"], select {
+                font-size: 18px;
+            }
+
+            h2 {
+                font-size: 28px;
+            }
+        
+			.spare-part-row {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 10px;
+				margin-bottom: 10px;
+				align-items: center;
+			}
+
+			.spare-part-row select,
+			.spare-part-row input[type="text"],
+			.spare-part-row input[list],
+			.spare-part-row input[type="number"],
+			.spare-part-row input[type="checkbox"],
+			.spare-part-row button {
+				width: 100%;
+				font-size: 16px;
+				padding: 8px;
+				box-sizing: border-box;
+			}
+
+		
+		.spare-part-row {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 10px;
+			margin-bottom: 10px;
+			align-items: center;
+		}
+
+		.spare-part-row select,
+		.spare-part-row input[type="number"],
+		.spare-part-row button {
+			padding: 6px;
+			font-size: 1rem;
+			border-radius: 4px;
+			border: 1px solid #ccc;
+		}
+
+		.customer-details {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 10px;
+			align-items: center;
+		}
+
+		/* On wider screens, they stay inline */
+		#company_name, #site_address {
+			font-size: 20px;
+			padding: 10px;
+		}
+
+		/* On small screens, site address wraps under company name */
+		@media (max-width: 600px) {
+			.customer-details {
+				flex-direction: column;
+				align-items: flex-start;
+			}
+
+			.spare-part-row input[type="number"] {
+				width: 50%;
+			}
+
+			#company_name, #site_address {
+				width: 100%;
+				font-size: 18px;
+			}
+		}
+
+
+		
+    </style>
+</body>
